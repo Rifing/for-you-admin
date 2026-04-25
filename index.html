@@ -69,8 +69,9 @@ main{max-width:780px;margin:0 auto;padding:48px 24px 80px}
 .badge{font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;padding:3px 8px;border-radius:20px;font-weight:400}
 .badge.lrc{background:var(--accent-soft);color:var(--accent)}
 .badge.no-lrc{background:var(--border);color:var(--ink-faint)}
-.del-btn{flex-shrink:0;background:none;border:none;cursor:pointer;padding:6px;border-radius:6px;color:var(--ink-faint);transition:background .2s,color .2s;}
+.del-btn,.edit-btn{flex-shrink:0;background:none;border:none;cursor:pointer;padding:6px;border-radius:6px;color:var(--ink-faint);transition:background .2s,color .2s;}
 .del-btn:hover{background:var(--red-soft);color:var(--red)}
+.edit-btn:hover{background:var(--accent-soft);color:var(--accent)}
 #empty-msg{text-align:center;padding:40px;font-family:'Cormorant Garamond',serif;font-style:italic;color:var(--ink-faint);font-size:1.05rem;}
 
 /* ── Modal ── */
@@ -189,6 +190,30 @@ main{max-width:780px;margin:0 auto;padding:48px 24px 80px}
   </div>
 </div>
 
+<!-- Edit Song Modal -->
+<div id="edit-modal-bg" style="position:fixed;inset:0;z-index:200;display:none;background:rgba(0,0,0,.7);backdrop-filter:blur(10px);align-items:center;justify-content:center;">
+  <div id="edit-modal" style="background:var(--surface);border-radius:20px;padding:40px;width:100%;max-width:480px;box-shadow:0 24px 80px rgba(0,0,0,.6);animation:rise .3s cubic-bezier(.22,1,.36,1) both;max-height:90vh;overflow-y:auto;border:1px solid var(--border);">
+    <h2 style="font-family:'Cormorant Garamond',serif;font-size:1.7rem;font-weight:400;margin-bottom:24px">Edit song</h2>
+    <div class="field">
+      <label>Song title</label>
+      <input type="text" id="e-title" placeholder="e.g. Clair de Lune"/>
+    </div>
+    <div class="field">
+      <label>Artist</label>
+      <input type="text" id="e-artist" placeholder="e.g. Claude Debussy"/>
+    </div>
+    <div class="field">
+      <label>Your note for this song</label>
+      <textarea id="e-note" rows="4" placeholder="e.g. This song reminds me of you every time I hear it…" style="width:100%;border:1px solid var(--border-strong);border-radius:10px;padding:12px 15px;font-family:'DM Sans',sans-serif;font-size:.9rem;font-weight:300;background:rgba(255,255,255,.04);color:var(--ink);outline:none;resize:vertical;min-height:80px;font-style:italic;line-height:1.6;transition:border-color .2s,box-shadow .2s;"></textarea>
+      <p class="hint" style="font-size:.74rem;color:var(--ink-faint);margin-top:5px;font-style:italic">Shows as a quote in the player when this song plays ♡</p>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-btn secondary" id="edit-cancel">Cancel</button>
+      <button class="modal-btn primary" id="edit-save">Save changes</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -266,9 +291,13 @@ function renderSongs(){
       <div class="song-badges">
         ${song.lrc_content?'<span class="badge lrc">LRC ✓</span>':'<span class="badge no-lrc">No lyrics</span>'}
       </div>
-      <button class="del-btn" data-id="${song.id}" data-path="${song.storage_path}" title="Delete">
+      <button class="edit-btn" title="Edit">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/></svg>
+      </button>
+      <button class="del-btn" title="Delete">
         <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
       </button>`;
+    row.querySelector('.edit-btn').addEventListener('click',e=>{ e.stopPropagation(); openEditModal(song); });
     row.querySelector('.del-btn').addEventListener('click',e=>{ e.stopPropagation(); deleteSong(song.id,song.storage_path); });
     list.appendChild(row);
   });
@@ -389,6 +418,38 @@ saveBtn.addEventListener('click',async()=>{
   progBar.style.width='100%'; progStatus.textContent='Done!';
   setTimeout(()=>{ closeModal(); toast(`"${title}" added!`); loadSongs(); },600);
 });
+// ── Edit Modal ────────────────────────────────────────────────
+const editBg   = document.getElementById('edit-modal-bg');
+const eTitle   = document.getElementById('e-title');
+const eArtist  = document.getElementById('e-artist');
+const eNote    = document.getElementById('e-note');
+const editSave = document.getElementById('edit-save');
+let editingId  = null;
+
+document.getElementById('edit-cancel').addEventListener('click', ()=>editBg.style.display='none');
+editBg.addEventListener('click', e=>{ if(e.target===editBg) editBg.style.display='none'; });
+
+function openEditModal(song){
+  editingId     = song.id;
+  eTitle.value  = song.title  || '';
+  eArtist.value = song.artist || '';
+  eNote.value   = song.note   || '';
+  editBg.style.display='flex';
+  setTimeout(()=>eTitle.focus(), 80);
+}
+
+editSave.addEventListener('click', async()=>{
+  if(!editingId) return;
+  editSave.disabled=true;
+  const {error}=await sb.from('songs').update({
+    title:  eTitle.value.trim(),
+    artist: eArtist.value.trim(),
+    note:   eNote.value.trim()
+  }).eq('id', editingId);
+  editSave.disabled=false;
+  if(error){ toast('Save failed: '+error.message); return; }
+  editBg.style.display='none';
+  toast('Song updated ✓');
+  await loadSongs();
+});
 </script>
-</body>
-</html>
